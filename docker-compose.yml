@@ -1,6 +1,17 @@
-version: "3.8"
-
 services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    ports:
+      - "3000:3000" # External port for routing frontend and backend
+      - "8080:8080" # Traefik dashboard
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:3000"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
   frontend:
     build:
       context: ./frontend
@@ -8,10 +19,12 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    ports:
-      - "3000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
     environment:
-      - CHOKIDAR_USEPOLLING=true # Enable hot reload for React
+      - CHOKIDAR_USEPOLLING=true
 
   backend:
     build:
@@ -20,12 +33,15 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
-    ports:
-      - "3001:3001"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+      - "traefik.http.services.backend.loadbalancer.server.port=3001"
     environment:
       - MONGO_URI=mongodb://mongo:27017/devhunter
     depends_on:
       - mongo
+
   mongo:
     image: mongo:latest
     ports:
